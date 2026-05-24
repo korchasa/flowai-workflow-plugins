@@ -1,0 +1,29 @@
+# Test workflow config — opencode runtime with glm-4.7 model
+# Minimal: single agent node to verify opencode+glm-4.7 integration
+
+name: "github-inbox-opencode-test"
+version: "1"
+
+defaults:
+  worktree_disabled: true
+  runtime: opencode
+  model: zai-coding-plan/glm-4.7
+  permission_mode: bypassPermissions
+  max_continuations: 1
+  timeout_seconds: 300
+  max_retries: 1
+  retry_delay_seconds: 5
+
+nodes:
+  test-agent:
+    type: agent
+    label: "Test Agent — opencode + glm-4.7"
+    prompt: |
+      You are a test agent. Your task is simple:
+      1. List the files in the current directory
+      2. Write a short summary (2-3 sentences) of what this project is about based on the README.md
+      3. Save your output to {{node_dir}}/test-output.md with a ## Summary section
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/test-output.md"
+        sections: ["Summary"]

@@ -1,0 +1,172 @@
+# SDLC workflow: 5-agent DAG, fully local. No remote services (no issue
+# tracker, no PR host, no push). Only local git is used.
+# Pipeline: PM -> Architect -> Tech Lead -> Developer (impl + self-verify) -> Tech Lead Review (review + edits + local merge)
+#
+# Template placeholders (regex-replaced by `flowai-workflow init`):
+#   LumaTale         — project identifier used in workflow name
+#   main             — local base branch the feature branches branch off and merge into
+#   deno task check  — project lint/format/test gate command
+
+name: "LumaTale-sdlc"
+version: "1"
+
+defaults:
+  max_parallel: 2
+  max_continuations: 3
+  timeout_seconds: 1800
+  max_retries: 3
+  retry_delay_seconds: 5
+  runtime: opencode
+  model: zai-coding-plan/glm-4.7
+  permission_mode: bypassPermissions
+  # HITL intentionally disabled: local-only pipeline has no remote channel
+  # to post comments on. Re-enable with a local-friendly mechanism (e.g.
+  # terminal prompt) if interactive intervention is needed.
+
+phases:
+  plan: [specification, design, decision]
+  impl: [implementation]
+  report: [tech-lead-review]
+
+nodes:
+  # Stage 1: Project Manager — specification
+  specification:
+    type: agent
+    label: "Project Manager — Specification"
+    system_prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/agents/agent-pm.md")}}
+    prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/autonomous-sdlc/memory/agent-pm.md
+      History: .flowai-workflow/autonomous-sdlc/memory/agent-pm-history.md
+      ---
+      Act as Product Manager for LumaTale: analyze project state, generate
+      candidate tasks across business directions, score with Benefit × Confidence / Effort,
+      challenge the winner, then write the spec. Local-only: do NOT call any
+      remote service. Derive a kebab-case slug from the chosen task title for
+      downstream branch naming.
+      Output: {{node_dir}}/01-spec.md with YAML frontmatter (`slug`, `direction`, `score`)
+      and sections: Analysis, Candidates Considered, Challenge, Problem Statement,
+      Acceptance Criteria, Scope, Summary.
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/01-spec.md"
+        sections: [
+          Analysis,
+          Candidates Considered,
+          Challenge,
+          Problem Statement,
+          Acceptance Criteria,
+          Scope,
+          Summary,
+        ]
+        fields: [slug, direction, score]
+
+  # Stage 2: Architect — implementation plan with variants
+  design:
+    type: agent
+    label: "Architect — Design-Solution Plan"
+    inputs: [specification]
+    system_prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/agents/agent-architect.md")}}
+    prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/autonomous-sdlc/memory/agent-architect.md
+      History: .flowai-workflow/autonomous-sdlc/memory/agent-architect-history.md
+      ---
+      Read the specification at {{input.specification}}/01-spec.md.
+      Explore the codebase to identify affected files.
+      Produce an implementation plan with 2-3 variants.
+      Output: {{node_dir}}/02-plan.md
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/02-plan.md"
+        sections: ["Summary"]
+
+  # Stage 3: Tech Lead — critique, decision, local feature branch
+  decision:
+    type: agent
+    label: "Tech Lead — Decision + Branch"
+    inputs: [specification, design]
+    system_prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/agents/agent-tech-lead.md")}}
+    prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/autonomous-sdlc/memory/agent-tech-lead.md
+      History: .flowai-workflow/autonomous-sdlc/memory/agent-tech-lead-history.md
+      ---
+      Read the plan at {{input.design}}/02-plan.md.
+      Read the spec at {{input.specification}}/01-spec.md.
+      Critique the plan, select a variant, produce task breakdown.
+      Create a LOCAL feature branch named `task-<slug>` (read `slug` from spec
+      frontmatter). Rebase onto local `main` if branch already exists. Do NOT
+      push, do NOT open a PR — pipeline is local-only.
+      Output: {{node_dir}}/03-decision.md
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/03-decision.md"
+        sections: ["Summary"]
+
+  # Stage 4: Developer — implementation + self-verification (merged Dev/QA)
+  implementation:
+    type: agent
+    label: "Developer — Implementation + Self-Verification"
+    inputs: [specification, decision]
+    system_prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/agents/agent-developer.md")}}
+    prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/autonomous-sdlc/memory/agent-developer.md
+      History: .flowai-workflow/autonomous-sdlc/memory/agent-developer-history.md
+      ---
+      Read the spec at {{input.specification}}/01-spec.md (acceptance criteria).
+      Read the decision at {{input.decision}}/03-decision.md (task breakdown, scope).
+      Implement the changes using TDD: tests first, then code.
+      Decide what tests to add to cover each acceptance criterion plus edge cases.
+      Run `deno task check` to verify the build gate.
+      Self-verify each acceptance criterion against the implementation.
+      Output: {{node_dir}}/04-impl-summary.md with sections:
+        ## Summary, ## Files Changed, ## Tests Added, ## Check Result,
+        ## Acceptance Criteria (per-criterion pass/fail with evidence).
+    validate:
+      - type: custom_script
+        path: "deno task check"
+      - type: artifact
+        path: "{{node_dir}}/04-impl-summary.md"
+        sections: ["Summary", "Acceptance Criteria"]
+
+  # Post-workflow: Tech Lead Review — deep local review + edits + full check + local merge
+  tech-lead-review:
+    type: agent
+    label: "Tech Lead Review — Quality Review + Edits + Local Merge"
+    inputs: [specification, decision, implementation]
+    system_prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/agents/agent-tech-lead-review.md")}}
+    prompt: |
+      {{file(".flowai-workflow/autonomous-sdlc/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/autonomous-sdlc/memory/agent-tech-lead-review.md
+      History: .flowai-workflow/autonomous-sdlc/memory/agent-tech-lead-review-history.md
+      ---
+      Perform a deep local quality review of the feature branch.
+      Read the spec at {{input.specification}}/01-spec.md for acceptance criteria.
+      Read the decision at {{input.decision}}/03-decision.md for scope.
+      Read the impl summary at {{input.implementation}}/04-impl-summary.md.
+      Inspect the full diff via `git diff main...HEAD`. Use multi-focus
+      sub-agents (Correctness, Simplicity, Conventions) for non-trivial diffs.
+      Apply Edit/Write directly to fix high-confidence issues you find.
+      Run `deno task check` after edits — must pass.
+      If review passes AND check is green: merge the feature branch into local
+      `main` with `git merge --no-ff`. If issues remain: leave branch intact,
+      report blocking findings.
+      Output: {{node_dir}}/06-review.md with verdict frontmatter (MERGED/OPEN).
+    run_on: always
+    settings:
+      on_error: continue
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/06-review.md"
+        sections: ["Summary"]
+      - type: frontmatter_field
+        path: "{{node_dir}}/06-review.md"
+        field: verdict
+        allowed: [MERGED, OPEN]
