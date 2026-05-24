@@ -13,8 +13,10 @@ communication, validation, loops, resume, and HITL.
 
 ## Prerequisite
 
-[Deno](https://deno.com/) 2.x on `$PATH`. The plugin bundles the engine
-TypeScript source; the host runs it via local Deno.
+[Deno](https://deno.com/) 2.x on `$PATH` — used once on first invocation
+to compile the engine into a cached binary at
+`${CLAUDE_PLUGIN_DATA}/bin/flowai-workflow-<version>`. Subsequent runs
+skip Deno entirely and exec the cached binary directly.
 
 ## Install
 
@@ -32,9 +34,14 @@ codex plugin marketplace add korchasa/flowai-workflow-plugins
 codex plugin install flowai-workflow@flowai-workflow
 ```
 
-No `~/.codex/config.toml` `[mcp_servers.*]` block is required —
-`flowai-workflow` is not an MCP server, so the plugin manager wires the
-launcher skills directly.
+No `~/.codex/config.toml` `[mcp_servers.*]` block is required — the
+plugin ships its own `.mcp.json` that registers the embedded
+`flowai-workflow` MCP server automatically. The MCP server exposes
+seven engine-control tools (get_workflow, get_state, list_runs,
+tail_artifacts, resume_node, cancel_run, apply_workflow_patch).
+First MCP-server spawn per plugin version invokes `deno compile`
+(~10–30 s); subsequent session spawns reuse the cached binary
+instantly.
 
 ## What's installed
 
@@ -80,15 +87,20 @@ launches the pipeline against it.
 .claude-plugin/marketplace.json     <- marketplace manifest
 plugins/flowai-workflow/
   .claude-plugin/plugin.json
+  .mcp.json                          <- auto-registers the MCP server (FR-E74)
+  bin/launch.sh                      <- lazy-compile launcher (FR-E74)
   skills/                            <- launcher skills (run, init, scaffold, ...)
   agents/                            <- supervisor, orchestrator
   engine/                            <- bundled engine TypeScript
   .flowai-workflow/<name>/           <- bundled workflows
 ```
 
-`$CLAUDE_PLUGIN_ROOT/engine/cli.ts` is the engine entry point that the
-launcher skills invoke. Don't edit files here — they're regenerated on
-every release.
+`$CLAUDE_PLUGIN_ROOT/bin/launch.sh` is the plugin's entry point: on
+first call it compiles `engine/cli.ts` to
+`${CLAUDE_PLUGIN_DATA}/bin/flowai-workflow-<version>`, then `exec`s
+the cached binary. The MCP server (registered via `.mcp.json`) and
+the launcher skills both go through this path. Don't edit files
+here — they're regenerated on every release.
 
 ## Versioning
 

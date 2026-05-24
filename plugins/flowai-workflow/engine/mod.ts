@@ -126,3 +126,5 @@ export { buildUpdateCommand, checkForUpdate, VERSION } from "./version.ts";
 export type { CheckForUpdateOptions, VersionCheckResult } from "./version.ts";
 export { extractCliFlags, getVersionString, parseArgs } from "./cli.ts";
 export type { CliFlags } from "./cli.ts";
+export { applyJsonPointerOp, runMcpServer } from "./mcp-server.ts";
+export type { JsonPointerOp, RunMcpServerOptions } from "./mcp-server.ts";

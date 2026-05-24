@@ -94,6 +94,13 @@ export function getVersionString(): string {
   return `flowai-workflow v${VERSION}`;
 }
 
+/** Normalise a workflow folder positional argument: strip trailing slashes.
+ * Shared between `run` (workflow.yaml path resolution) and `mcp`
+ * (workflowDir argument for `runMcpServer`). FR-E73. */
+export function normalizeWorkflowDir(arg: string): string {
+  return arg.replace(/\/+$/, "");
+}
+
 /**
  * Parse CLI arguments into EngineOptions.
  *
@@ -195,7 +202,7 @@ export function parseArgs(args: string[]): EngineOptions {
           cliArgs[key] = args[++i] ?? "";
         } else if (configPath === "") {
           // First positional → workflow folder path.
-          configPath = `${arg.replace(/\/+$/, "")}/workflow.yaml`;
+          configPath = `${normalizeWorkflowDir(arg)}/workflow.yaml`;
         } else {
           throw new Error(
             `Unexpected positional argument: ${arg}. ` +
@@ -231,10 +238,12 @@ Workflow Engine — Configurable multi-agent workflow runner
 Usage:
   flowai-workflow run <workflow> [options]  Execute DAG workflow
   flowai-workflow init [options]            Scaffold .flowai-workflow/ directory
+  flowai-workflow mcp <workflow>            Start embedded MCP server (FR-E73)
 
 Subcommands:
   run                   Execute DAG workflow engine
   init                  Scaffold .flowai-workflow/ directory (run init --help for details)
+  mcp <workflow>        Start embedded MCP server exposing 7 engine-control tools over stdio
 
 Run positional:
   <workflow>            Path to workflow folder containing workflow.yaml (mandatory).
@@ -264,6 +273,7 @@ Examples:
   flowai-workflow run .flowai-workflow/github-inbox --prompt "Focus on the login bug"
   flowai-workflow run .flowai-workflow/github-inbox --resume 20260308T143022 -v
   flowai-workflow run .flowai-workflow/github-inbox --dry-run
+  flowai-workflow mcp .flowai-workflow/github-inbox
 `);
 }
 
@@ -274,8 +284,9 @@ Examples:
  * Shared between the `run` subcommand and the backward-compat shim.
  */
 async function runEngine(args: string[]): Promise<never> {
-  installSignalHandlers();
-
+  // Signal handlers are installed once at the top of `if (import.meta.main)`
+  // so every subcommand shares the same routing (FR-E61: engine never
+  // installs handlers — CLI is the sole owner).
   try {
     const { skipUpdateCheck, cycles, remaining } = extractCliFlags(args);
     const options = parseArgs(remaining);
@@ -389,6 +400,10 @@ if (import.meta.main) {
 
   maybePrintDeprecationBanner();
 
+  // Single signal-handler install for the whole process (FR-E61). All
+  // subcommands inherit the same routing; the engine never installs its own.
+  installSignalHandlers();
+
   const subcommand = Deno.args[0];
 
   // Global flags handled before subcommand dispatch
@@ -412,6 +427,32 @@ if (import.meta.main) {
       engineVersion: VERSION,
     });
     Deno.exit(exitCode);
+  }
+
+  // Subcommand: `mcp <workflow>` or `mcp --no-workflow` (FR-E73, FR-E74).
+  // Dynamic import keeps the SDK off the cold-start path for `run` / `init`.
+  if (subcommand === "mcp") {
+    const rest = Deno.args.slice(1);
+    const { runMcpServer } = await import("./mcp-server.ts");
+    if (rest.includes("--no-workflow")) {
+      // Plugin launcher passes this when no .flowai-workflow/<name>/
+      // folder is resolvable in the current project (FR-E74). The
+      // server still completes the MCP handshake; tool calls return a
+      // structured missing-workflow error.
+      await runMcpServer(undefined, { noWorkflow: true });
+      Deno.exit(0);
+    }
+    const positional = rest[0];
+    if (!positional) {
+      console.error(
+        "Error: missing workflow argument. " +
+          "Usage: flowai-workflow mcp <workflow> | --no-workflow",
+      );
+      Deno.exit(1);
+    }
+    const workflowDir = normalizeWorkflowDir(positional);
+    await runMcpServer(workflowDir);
+    Deno.exit(0);
   }
 
   // Backward-compat shim: bare `--` flags without `run` prefix.

@@ -12,7 +12,9 @@
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
     "@std/semver": "jsr:@std/semver@^1.0.0",
     "@std/cli": "jsr:@std/cli@^1.0.0",
-    "@std/fs": "jsr:@std/fs@^1.0.0"
+    "@std/fs": "jsr:@std/fs@^1.0.0",
+    "@modelcontextprotocol/sdk": "npm:@modelcontextprotocol/sdk@^1.29.0",
+    "zod": "npm:zod@^4.0.0"
   },
   "tasks": {
     "test": "deno test -A --no-check --ignore=.claude/worktrees,.flowai-workflow/*/runs"
