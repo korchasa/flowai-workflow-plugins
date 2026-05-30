@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "flowai-workflow": {
-      "command": "bash",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/launch.sh", "mcp"]
-    }
-  }
-}

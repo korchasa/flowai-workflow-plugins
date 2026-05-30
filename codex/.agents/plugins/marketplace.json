@@ -1,0 +1,32 @@
+{
+  "name": "flowai-workflow",
+  "interface": {
+    "displayName": "flowai-workflow"
+  },
+  "owner": {
+    "name": "korchasa"
+  },
+  "description": "Marketplace for the flowai-workflow Codex plugin — DAG-based engine for orchestrating AI agents.",
+  "plugins": [
+    {
+      "name": "flowai-workflow",
+      "source": {
+        "source": "local",
+        "path": "./plugins/flowai-workflow"
+      },
+      "description": "Run, scaffold, supervise, and orchestrate flowai-workflow DAGs from inside Codex. Bundles the engine source — requires Deno 2.x on the host.",
+      "version": "0.7.16",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "keywords": [
+        "ai",
+        "workflow",
+        "dag",
+        "flowai"
+      ],
+      "category": "Productivity"
+    }
+  ]
+}

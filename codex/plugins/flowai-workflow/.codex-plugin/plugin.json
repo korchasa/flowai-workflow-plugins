@@ -1,0 +1,23 @@
+{
+  "name": "flowai-workflow",
+  "description": "Run, scaffold, supervise, and orchestrate flowai-workflow DAGs — the engine for AI agent pipelines. Bundles the engine source; requires Deno 2.x on the host.",
+  "version": "0.7.16",
+  "author": {
+    "name": "korchasa"
+  },
+  "repository": "https://github.com/korchasa/flowai-workflow",
+  "homepage": "https://github.com/korchasa/flowai-workflow#install",
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "flowai-workflow",
+    "shortDescription": "Run, scaffold, supervise, and orchestrate flowai-workflow DAGs.",
+    "developerName": "korchasa",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ]
+  }
+}

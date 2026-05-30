@@ -1,0 +1,185 @@
+# Workflow configuration — 6-node SDLC flow via OpenCode + GLM-4.7.
+# Mirror of workflow.yaml with runtime: opencode and zai-coding-plan/glm-4.7 model.
+
+name: "github-inbox-opencode"
+version: "1"
+
+defaults:
+  max_parallel: 2
+  max_continuations: 3
+  timeout_seconds: 1800
+  max_retries: 3
+  retry_delay_seconds: 5
+  runtime: opencode
+  model: zai-coding-plan/glm-4.7
+  permission_mode: bypassPermissions
+  on_failure_script: .flowai-workflow/github-inbox-opencode/scripts/rollback-uncommitted.sh
+  hitl:
+    ask_script: .flowai-workflow/github-inbox-opencode/scripts/hitl-ask.sh
+    check_script: .flowai-workflow/github-inbox-opencode/scripts/hitl-check.sh
+    artifact_source: "{{input.specification}}/01-spec.md"
+    poll_interval: 60
+    timeout: 7200
+    exclude_login: "github-actions[bot]"
+
+phases:
+  plan: [specification, design, decision]
+  impl: [implementation]
+  report: [tech-lead-review]
+
+nodes:
+  # Stage 1: Project Manager — specification
+  specification:
+    type: agent
+    label: "Project Manager — Specification"
+    system_prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/agents/agent-pm.md")}}
+    prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/github-inbox-opencode/memory/agent-pm.md
+      History: .flowai-workflow/github-inbox-opencode/memory/agent-pm-history.md
+      ---
+      Triage open GitHub issues: check health (no merged PRs, no needs-triage label), select best candidate by priority.
+      Output:
+        - {{node_dir}}/01-spec.md (YAML frontmatter with `issue: <N>` and `scope: <engine|sdlc|engine+sdlc>`,
+          then problem, affected requirements, SRS changes, scope boundaries)
+        - Update the target SRS file(s) based on issue scope (see Scope Detection in prompt)
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/01-spec.md"
+        sections: ["Problem Statement", "Scope", "Summary"]
+      - type: frontmatter_field
+        path: "{{node_dir}}/01-spec.md"
+        field: issue
+      - type: frontmatter_field
+        path: "{{node_dir}}/01-spec.md"
+        field: scope
+
+  # Stage 2: Architect — design-solution plan with variants
+  design:
+    type: agent
+    label: "Architect — Design-Solution Plan"
+    inputs: [specification]
+    system_prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/agents/agent-architect.md")}}
+    prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/github-inbox-opencode/memory/agent-architect.md
+      History: .flowai-workflow/github-inbox-opencode/memory/agent-architect-history.md
+      ---
+      Read the specification at {{input.specification}}/01-spec.md.
+      Read ONLY scope-relevant SRS/SDS docs (derive scope from spec frontmatter `scope:` field).
+      Produce an implementation plan with 2-3 variants.
+      Output: {{node_dir}}/02-plan.md
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/02-plan.md"
+        sections: ["Summary"]
+
+  # Stage 3: Tech Lead — critique, decision, SDS update, branch + draft PR
+  decision:
+    type: agent
+    label: "Tech Lead — Decision + Branch + PR"
+    inputs: [specification, design]
+    system_prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/agents/agent-tech-lead.md")}}
+    prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/github-inbox-opencode/memory/agent-tech-lead.md
+      History: .flowai-workflow/github-inbox-opencode/memory/agent-tech-lead-history.md
+      ---
+      Read the plan at {{input.design}}/02-plan.md.
+      Read the spec at {{input.specification}}/01-spec.md.
+      Read ONLY scope-relevant SRS/SDS docs (derive scope from spec frontmatter `scope:` field), and AGENTS.md.
+      Critique the plan, select a variant, produce task breakdown (03-decision.md).
+      Update the scope-relevant SDS with selected variant's design details.
+      Create feature branch (or rebase existing onto origin/main) and draft PR.
+      Output: {{node_dir}}/03-decision.md
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/03-decision.md"
+        sections: ["Summary"]
+
+  # Stages 4-5: Developer + QA loop (body nodes defined inline)
+  implementation:
+    type: loop
+    label: "Developer+QA Implementation Loop"
+    inputs: [specification, decision]
+    condition_node: verify
+    condition_field: verdict
+    exit_value: PASS
+    max_iterations: 3
+    nodes:
+      build:
+        type: agent
+        label: "Developer — Implementation"
+        inputs: [decision]
+        system_prompt: |
+          {{file(".flowai-workflow/github-inbox-opencode/agents/agent-developer.md")}}
+        prompt: |
+          {{file(".flowai-workflow/github-inbox-opencode/memory/reflection-protocol.md")}}
+          Memory: .flowai-workflow/github-inbox-opencode/memory/agent-developer.md
+          History: .flowai-workflow/github-inbox-opencode/memory/agent-developer-history.md
+          ---
+          Read the decision at {{input.decision}}/03-decision.md.
+          Read ONLY scope-relevant SRS/SDS docs (derive scope from decision's spec reference or task context).
+          Implement the changes following the task breakdown.
+          This is iteration {{loop.iteration}}.
+          After deno task check passes, write {{node_dir}}/04-impl-summary.md
+          with a ## Summary section listing files changed, tests added/modified, and check status.
+        validate:
+          - type: custom_script
+            path: "deno task check"
+          - type: artifact
+            path: "{{node_dir}}/04-impl-summary.md"
+            sections: ["Summary"]
+      verify:
+        type: agent
+        label: "QA — Verification"
+        inputs: [specification, decision, build]
+        system_prompt: |
+          {{file(".flowai-workflow/github-inbox-opencode/agents/agent-qa.md")}}
+        prompt: |
+          {{file(".flowai-workflow/github-inbox-opencode/memory/reflection-protocol.md")}}
+          Memory: .flowai-workflow/github-inbox-opencode/memory/agent-qa.md
+          History: .flowai-workflow/github-inbox-opencode/memory/agent-qa-history.md
+          ---
+          Verify the implementation against the spec at {{input.specification}}/01-spec.md.
+          Check the decision at {{input.decision}}/03-decision.md.
+          Run deno task check and verify all acceptance criteria.
+          Post verdict as PR review (approve or request-changes).
+          Output: {{node_dir}}/05-qa-report.md with YAML frontmatter containing verdict: PASS or FAIL
+        validate:
+          - type: artifact
+            path: "{{node_dir}}/05-qa-report.md"
+            sections: ["Summary"]
+          - type: frontmatter_field
+            path: "{{node_dir}}/05-qa-report.md"
+            field: verdict
+            allowed: [PASS, FAIL]
+
+  # Post-workflow: Tech Lead Review — final review + CI gate + merge
+  tech-lead-review:
+    type: agent
+    label: "Tech Lead Review — Final Review + CI + Merge"
+    inputs: [specification, decision]
+    system_prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/agents/agent-tech-lead-review.md")}}
+    prompt: |
+      {{file(".flowai-workflow/github-inbox-opencode/memory/reflection-protocol.md")}}
+      Memory: .flowai-workflow/github-inbox-opencode/memory/agent-tech-lead-review.md
+      History: .flowai-workflow/github-inbox-opencode/memory/agent-tech-lead-review-history.md
+      ---
+      Perform final code review of the PR.
+      Read the spec at {{input.specification}}/01-spec.md for acceptance criteria.
+      Read the decision at {{input.decision}}/03-decision.md for scope.
+      Check CI status. Merge PR if all checks pass, or leave open with review comments.
+      Output: {{node_dir}}/06-review.md
+    run_on: always
+    after: ".flowai-workflow/github-inbox-opencode/scripts/run-dashboard.sh {{run_dir}}"
+    settings:
+      on_error: continue
+    validate:
+      - type: artifact
+        path: "{{node_dir}}/06-review.md"
+        sections: ["Summary"]
