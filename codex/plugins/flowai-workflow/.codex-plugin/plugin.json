@@ -1,7 +1,7 @@
 {
   "name": "flowai-workflow",
   "description": "Run, scaffold, supervise, and orchestrate flowai-workflow DAGs — the engine for AI agent pipelines. Bundles the engine source; requires Deno 2.x on the host.",
-  "version": "0.7.16",
+  "version": "0.8.0",
   "author": {
     "name": "korchasa"
   },

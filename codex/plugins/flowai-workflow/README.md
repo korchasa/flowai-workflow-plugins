@@ -1,7 +1,7 @@
 # flowai-workflow plugin
 
-Shared skills, agents, launcher, engine sources, and bundled workflows
-for the host-specific Claude Code and Codex plugin payloads.
+Shared skills, agents, and bundled workflows for the host-specific
+Claude Code and Codex plugin payloads.
 
 ## Skills
 
@@ -13,7 +13,8 @@ for the host-specific Claude Code and Codex plugin payloads.
 
 ## Runtime
 
-`bin/launch.ts` is the plugin entry point. It resolves the plugin root
-from host environment when present, otherwise from its own `import.meta.url`.
-On first invocation it compiles `engine/cli.ts` into a host data
-directory; later invocations reuse the cached binary.
+The `flowai-workflow` binary is a plugin precondition (FR-E78). The
+plugin's `.mcp.json` invokes `flowai-workflow mcp` directly; skills
+shell out to `flowai-workflow run` / `flowai-workflow init`. Install
+the binary from a GitHub release asset (`sha256` sidecar provided)
+or via `deno install -A jsr:@korchasa/flowai-workflow`.

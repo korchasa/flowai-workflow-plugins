@@ -18,6 +18,10 @@ Launch `supervisor` with the host's real subagent mechanism:
   `subagent_type=supervisor`;
 - OpenCode: use the `@supervisor <task prompt>` mention
   syntax.
+- Codex: spawn a native `worker` subagent (the parent dispatches; Codex
+  `max_depth=1` forbids nested spawns) and instruct it — by skill name — to
+  invoke the `supervisor` skill and return the `SUPERVISOR_REPORT` block as
+  its final message. The worker, not the parent, reads all run artifacts.
 
 Pass:
 
@@ -30,10 +34,11 @@ Ask the supervisor to return only a concise stop report: workflow, run id,
 final state, failed/stalled node, evidence paths read, fix surface, resume
 command, and remaining blocker.
 
-If the current IDE has no native subagent dispatch, say that context-isolated
-supervision is unavailable in this IDE and stop. Do not silently run the full
-diagnosis loop in the parent context. Do not simulate delegation with `bash`,
-`echo`, heredocs, or placeholder text.
+If the host has neither a native subagent mechanism (Claude `subagent_type`,
+OpenCode `@mention`) nor Codex-style `worker` dispatch, say that
+context-isolated supervision is unavailable in this IDE and stop. Do not
+silently run the full diagnosis loop in the parent context. Do not simulate
+delegation with `bash`, `echo`, heredocs, or placeholder text.
 
 ## Parent Boundaries
 

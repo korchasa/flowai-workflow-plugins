@@ -7,36 +7,34 @@ effort: low
 
 # Init a flowai-workflow into the user's project
 
-Copy one of the plugin-bundled workflows into the user's current
+Copy one of the engine-bundled workflows into the user's current
 project at `<project-root>/.flowai-workflow/<name>/`. Adaptation
 (project-specific commands, paths, prompts) happens after copy via
 the `scaffold` skill — `init` itself is a verbatim copy.
 
+The `flowai-workflow` binary is a plugin precondition (FR-E78) and
+embeds the canonical workflow catalogue at compile time.
+
 ## Preflight
 
 ```bash
-command -v deno >/dev/null 2>&1 || { echo "Error: Deno 2.x is required — install from https://deno.com/ then retry." >&2; exit 127; }
+command -v flowai-workflow >/dev/null 2>&1 || { echo "Error: flowai-workflow is required — see https://github.com/korchasa/flowai-workflow#install" >&2; exit 127; }
 ```
 
 ## List bundled workflows
 
 ```bash
-FLOWAI_SUPPRESS_DEPRECATION=1 \
-  deno run -A "${CLAUDE_PLUGIN_ROOT}/bin/launch.ts" init \
-    --bundle-dir "${CLAUDE_PLUGIN_ROOT}/.flowai-workflow" --list
+flowai-workflow init --list
 ```
 
-This enumerates the workflows shipped in the plugin payload. Pick one
-by intent (issue-driven SDLC → `github-inbox`; autonomous local SDLC →
+This enumerates the workflows shipped in the binary. Pick one by
+intent (issue-driven SDLC → `github-inbox`; autonomous local SDLC →
 `autonomous-sdlc`; smoke check → `github-inbox-opencode-test`).
 
 ## Scaffold into the project
 
 ```bash
-FLOWAI_SUPPRESS_DEPRECATION=1 \
-  deno run -A "${CLAUDE_PLUGIN_ROOT}/bin/launch.ts" init \
-    --bundle-dir "${CLAUDE_PLUGIN_ROOT}/.flowai-workflow" \
-    --workflow <name>
+flowai-workflow init --workflow <name>
 ```
 
 Add `--dry-run` first when the user wants to preview writes.

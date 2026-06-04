@@ -1,16 +1,9 @@
 {
   "mcpServers": {
     "flowai-workflow": {
-      "command": "deno",
-      "args": [
-        "run",
-        "-A",
-        "${CLAUDE_PLUGIN_ROOT}/bin/launch.ts",
-        "mcp"
-      ],
-      "env": {
-        "FLOWAI_SUPPRESS_DEPRECATION": "1"
-      }
+      "command": "flowai-workflow",
+      "args": ["mcp"],
+      "cwd": "${CLAUDE_PROJECT_DIR}"
     }
   }
 }

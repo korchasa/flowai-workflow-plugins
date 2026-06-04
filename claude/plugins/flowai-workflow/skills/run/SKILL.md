@@ -1,28 +1,27 @@
 ---
 name: run
-description: Execute a bundled or project-local flowai-workflow DAG. Use to launch a workflow run from inside the host IDE without installing the CLI separately.
+description: Execute a bundled or project-local flowai-workflow DAG. Use to launch a workflow run from inside the host IDE.
 argument-hint: workflow name or path (e.g. github-inbox or .flowai-workflow/<name>)
 effort: low
 ---
 
 # Run flowai-workflow
 
-Execute a flowai-workflow DAG via the plugin-bundled engine. The plugin
-ships the engine TypeScript source under `${CLAUDE_PLUGIN_ROOT}/engine/`
-and the canonical bundled workflows under
-`${CLAUDE_PLUGIN_ROOT}/.flowai-workflow/<name>/`. Runs use the host's
-locally-installed Deno 2.x.
+Execute a flowai-workflow DAG via the `flowai-workflow` engine binary
+(plugin precondition — FR-E78). The binary itself bundles the canonical
+workflows; the operator may also adapt a project-local copy under
+`<project-root>/.flowai-workflow/<name>/`.
 
 ## Preflight
 
-Before launching, verify Deno is on PATH:
+Before launching, verify the engine is on PATH:
 
 ```bash
-command -v deno >/dev/null 2>&1 || { echo "Error: Deno 2.x is required — install from https://deno.com/ then retry." >&2; exit 127; }
+command -v flowai-workflow >/dev/null 2>&1 || { echo "Error: flowai-workflow is required — see https://github.com/korchasa/flowai-workflow#install" >&2; exit 127; }
 ```
 
-If Deno is missing, stop and report the install link. Do not silently
-fall back to a different runtime or skip the run.
+If the binary is missing, stop and surface the install link. Do not
+silently fall back to a different runtime.
 
 ## Resolve the workflow
 
@@ -32,21 +31,17 @@ order:
 1. If the argument is an existing directory containing `workflow.yaml`,
    use it as-is.
 2. If the argument matches a sibling under
-   `${CLAUDE_PLUGIN_ROOT}/.flowai-workflow/`, use that bundled folder.
-3. If the argument matches a sibling under
    `<project-root>/.flowai-workflow/`, use the project-local copy.
-4. Otherwise, list available workflows and ask the user which one to
-   run.
+3. Otherwise, treat the argument as a bundled workflow name and rely on
+   the engine's built-in catalogue (see `flowai-workflow init --list`).
+4. If none of the above resolves, list available workflows and ask the
+   user which one to run.
 
 ## Launch
 
 ```bash
-FLOWAI_SUPPRESS_DEPRECATION=1 \
-  deno run -A "${CLAUDE_PLUGIN_ROOT}/bin/launch.ts" run "<resolved-workflow-path>" [extra args]
+flowai-workflow run "<resolved-workflow-path>" [extra args]
 ```
-
-`FLOWAI_SUPPRESS_DEPRECATION=1` silences the legacy JSR/binary
-deprecation banner — irrelevant inside the plugin install.
 
 Forward any additional CLI flags the user provides (e.g. `--prompt`,
 `--dry-run`, `--cycles`). Stream output back to the user in normal
@@ -68,7 +63,6 @@ verbosity unless they asked for `-v` / `-q`.
   point the user at `scaffold` to adapt the config.
 - "Permission denied: …" — the engine writes under
   `<workflow>/runs/<run-id>/` and the per-run worktree; if the
-  workflow lives under `${CLAUDE_PLUGIN_ROOT}/.flowai-workflow/` (which
-  is read-only by convention), instruct the user to first
-  `flowai-workflow:init` into their project so runs can write into
+  workflow lives in a read-only location, instruct the user to first
+  `/flowai-workflow:init` into their project so runs can write into
   the project-local copy.

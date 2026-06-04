@@ -1,15 +1,6 @@
 {
   "flowai-workflow": {
-    "command": "deno",
-    "args": [
-      "run",
-      "-A",
-      "./bin/launch.ts",
-      "mcp"
-    ],
-    "cwd": ".",
-    "env": {
-      "FLOWAI_SUPPRESS_DEPRECATION": "1"
-    }
+    "command": "flowai-workflow",
+    "args": ["mcp"]
   }
 }

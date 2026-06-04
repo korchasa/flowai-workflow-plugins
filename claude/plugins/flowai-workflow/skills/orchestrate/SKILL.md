@@ -20,6 +20,11 @@ the public entry point and dispatch bridge. Policy decisions belong to
      `subagent_type=orchestrator`;
    - OpenCode: use the `@orchestrator <task prompt>` mention
      syntax.
+   - Codex: spawn a native `worker` subagent (the parent dispatches; Codex
+     `max_depth=1` forbids nested spawns) and instruct it — by skill name —
+     to invoke the `orchestrator` skill and return the `SUPERVISOR_DELEGATION`
+     block as its final message. The worker, not the parent, performs all
+     policy reads.
 2. Ask it to read policy/history, append its decision, and return either:
    - `STOP: <reason>`; or
    - a `SUPERVISOR_DELEGATION` block with workflow path, optional run id,
@@ -29,6 +34,9 @@ the public entry point and dispatch bridge. Policy decisions belong to
    - Claude Code: `Agent` / `Task` with
      `subagent_type=supervisor`;
    - OpenCode: `@supervisor <task prompt>`.
+   - Codex: spawn a native `worker` subagent and instruct it — by skill
+     name — to invoke the `supervisor` skill with the delegation prompt and
+     return the `SUPERVISOR_REPORT` block.
 4. Pass the supervisor only one workflow/run and ask for a short result:
    `workflow`, `run_id`, `status`, `fixes`, `repeat`, `blocker`.
 5. Feed that short result into the next orchestrator call if the policy loop
@@ -43,10 +51,11 @@ Pass the orchestrator:
 - prior supervisor summary, when continuing after a supervised run;
 - instruction to return concise progress plus a structured delegation block.
 
-If the current IDE has no native subagent dispatch, say that context-isolated
-orchestration is unavailable in this IDE and stop. Do not inline the loop in the
-parent context. Do not simulate delegation with `bash`, `echo`, heredocs, or
-placeholder text.
+If the host has neither a native subagent mechanism (Claude `subagent_type`,
+OpenCode `@mention`) nor Codex-style `worker` dispatch, say that
+context-isolated orchestration is unavailable in this IDE and stop. Do not
+inline the loop in the parent context. Do not simulate delegation with `bash`,
+`echo`, heredocs, or placeholder text.
 
 ## Parent Boundaries
 

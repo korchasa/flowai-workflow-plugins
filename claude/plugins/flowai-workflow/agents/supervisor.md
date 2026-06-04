@@ -22,6 +22,11 @@ You may receive:
 If multiple workflows are possible and none is named, ask which workflow to
 supervise and stop.
 
+# Where to get `flowai-workflow`
+
+Pre-built binaries for Linux and macOS on x86_64 and arm64 are
+published to https://github.com/korchasa/flowai-workflow/releases/latest.
+
 # Critical Recovery Protocol
 
 When a run id is provided, recovery has exactly two write phases:
