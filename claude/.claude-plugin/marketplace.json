@@ -9,7 +9,7 @@
       "name": "flowai-workflow",
       "source": "./plugins/flowai-workflow",
       "description": "Run, scaffold, supervise, and orchestrate flowai-workflow DAGs from inside Claude Code. Bundles the engine source — requires Deno 2.x on the host.",
-      "version": "0.8.1",
+      "version": "0.8.2",
       "keywords": [
         "ai",
         "workflow",
