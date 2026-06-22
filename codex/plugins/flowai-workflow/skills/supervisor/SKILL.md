@@ -26,22 +26,54 @@ supervise and stop.
 Pre-built binaries for Linux and macOS on x86_64 and arm64 are
 published to https://github.com/korchasa/flowai-workflow/releases/latest.
 
+# Engine control surface (MCP-first)
+
+The `flowai-workflow` MCP server exposes the engine as typed tools. **Prefer
+the MCP tools** — they start/resume runs WITHOUT blocking, return the `run_id`
+directly, and read state with no shell pipes (so the SIGPIPE class of bug
+cannot happen). Logical tool → use:
+
+- `start_run { wait:false }` — start a FRESH run; returns `{ run_id, pid }`
+  immediately. No log-scrape, no newest-mtime guess.
+- `resume_node { run_id, wait:false }` — resume after a root-cause patch;
+  returns `{ run_id, pid }`. Rejects if the run is already live (attach, do
+  not resume).
+- `get_state { run_id }` — current `RunState`; use for polling/liveness
+  instead of `state.json` + `kill -0`.
+- `list_runs` — enumerate runs; use to locate the latest instead of
+  `ls -1t runs/`.
+- `tail_artifacts { run_id, node_id, filename, lines }` — last N lines of a
+  node artifact.
+- `cancel_run { run_id }` — SIGTERM the live engine for that run.
+- `provide_human_input { run_id, node_id, text }` — deliver a REAL HITL reply
+  (never fabricate).
+- `get_workflow` — parsed `workflow.yaml`.
+
+**Bash fallback.** If the MCP tools are NOT reachable from this Codex worker,
+fall back to the Bash daemon protocol under "Engine is long-running (Bash
+fallback)" — functionally equivalent but carries the SIGPIPE footgun.
+
 # Critical Recovery Protocol
 
 When a run id is provided, recovery has exactly two write phases:
 
 1. Patch the producer/config surface outside `runs/<run-id>/`.
-2. Invoke the workflow engine in the background (see "Engine is
-   long-running" below):
+2. Resume — **MCP-first**: `resume_node { run_id, wait:false }`. **Bash
+   fallback** (MCP unavailable):
 
-```bash
-nohup flowai-workflow run <workflow> --resume <run-id> \
-  > <workflow>/runs/<run-id>/supervisor.engine.log 2>&1 &
-```
+   ```bash
+   nohup flowai-workflow run <workflow> --resume <run-id> \
+     > <workflow>/runs/<run-id>/supervisor.engine.log 2>&1 &
+   ```
 
-Do not send the final report until that command has been attempted.
+Do not send the final report until the resume (MCP call or Bash command) has
+been attempted.
 
-# Engine is long-running
+# Engine is long-running (Bash fallback)
+
+Use this section ONLY when the MCP tools are unavailable (see "Engine control
+surface"). With MCP, `start_run`/`resume_node` already background the run and
+return the `run_id` — none of the rules below apply.
 
 `flowai-workflow run` is a long-lived foreground process. It runs the whole
 DAG of agent nodes; each node may take many minutes. Treat every
@@ -101,17 +133,18 @@ run when a run id was provided, unless the user explicitly asks.
 Pick exactly one start mode before polling. Misclassifying causes silent
 double-runs or wasted relaunches.
 
-- **fresh** — no run id given. Launch engine in the background, capture run id
-  from durable artifacts, then poll.
-- **attach-live** — run id given AND `<workflow>/runs/.lock` references that
-  run id AND the engine PID in the lock is alive. The engine is already
-  running and healthy. Do NOT relaunch. Skip directly to polling.
-- **resume-after-fail** — run id given AND (lock missing, lock points
-  elsewhere, or PID dead) AND `state.json.status` is not `completed`. The
-  only mode that legitimately invokes `--resume` (after a root-cause patch).
+- **fresh** — no run id given. MCP-first: `start_run { wait:false }`, take the
+  `run_id` from the result, then poll. Bash fallback: launch in the background,
+  capture run id from durable artifacts.
+- **attach-live** — run id given AND the run is already executing (confirm via
+  `get_state`/`list_runs`; Bash fallback: `runs/.lock` PID alive). Do NOT
+  relaunch (`resume_node { wait:false }` is rejected here). Skip to polling.
+- **resume-after-fail** — run id given AND the run is NOT live AND status is
+  not `completed`. The only mode that legitimately resumes — `resume_node
+  { wait:false }` (Bash fallback: `--resume`) after a root-cause patch.
 
-If a run id is given AND `state.json.status` is already `completed`, stop
-immediately with `status: completed`. Do not relaunch.
+If a run id is given AND the run status (via `get_state`, or `state.json`) is
+already `completed`, stop immediately with `status: completed`. Do not relaunch.
 
 # Core Loop
 
@@ -121,10 +154,12 @@ immediately with `status: completed`. Do not relaunch.
    `runs/<run-id>/logs/`, and node artifact directories declared by the
    journal or derived from phases.
 3. Poll every 30 seconds for active runs unless the user set another cadence.
-   Each poll reads files only and verifies the engine PID is alive.
+   MCP-first: `get_state` for status + `tail_artifacts` for node output. Bash
+   fallback: read files only and verify the engine PID is alive (never pipe).
 4. On failure or stall, run a 5-why chain, patch ONE fix surface outside
-   `runs/<run-id>/`, then relaunch the engine in the background via `--resume`
-   per "Critical Recovery Protocol". Truncating pipes are forbidden here too.
+   `runs/<run-id>/`, then resume — MCP-first `resume_node { wait:false }` (Bash
+   fallback: background `--resume`, no truncating pipes) per "Critical Recovery
+   Protocol".
 5. Return triggers — emit the Stop Report and exit on ANY of:
    - terminal state in `state.json.status`: `completed`, `failed`,
      `aborted`, `scope_violation`, `hitl_timeout`;
@@ -168,8 +203,9 @@ Touch one fix surface per attempt:
 - project files only when the workflow node's job is to change the project.
 
 Run artifacts are evidence, not fix surfaces. The workflow engine owns run
-state; recovery means patching the producer/config and invoking
-`flowai-workflow run <workflow> --resume <run-id>`.
+state; recovery means patching the producer/config and resuming —
+`resume_node { run_id, wait:false }` (MCP) or `flowai-workflow run <workflow>
+--resume <run-id>` (Bash fallback).
 
 # Stop Report
 
@@ -188,7 +224,7 @@ node: <failed/stalled/current node id, or "none">
 evidence: <comma-separated artifact paths actually read>
 root_cause: <one sentence, or "none" if no failure>
 fix_surface: <path patched this invocation, or "none">
-resume_cmd: <literal command attempted, or "none">
+resume_cmd: <resume attempted: "resume_node wait:false" (MCP) or the literal `--resume` command, or "none">
 fixes: <integer count of patches attempted this invocation>
 repeat: true | false
 blocker: <one sentence describing what a human must do, or "none">
