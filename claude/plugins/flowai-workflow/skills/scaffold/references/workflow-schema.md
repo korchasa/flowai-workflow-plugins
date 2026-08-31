@@ -74,7 +74,11 @@ HITL:
 - `label` string.
 - `inputs` node IDs.
 - `phase` string. Do not mix with top-level `phases`.
-- `run_on`: `always`, `success`, or `failure`.
+- `run_on`: `always`, `success`, `failure`, or `every_attempt`. The first
+  three run at most once per run, so `--resume` does not repeat a node that
+  already completed; `every_attempt` opts the node into running again on each
+  resume. Compose with `when` to narrow it, e.g.
+  `when: '[ "{{run.outcome}}" = "failure" ]'`.
 - `before`, `after`, `settings`, `validate`, `env`.
 
 ## Agent nodes

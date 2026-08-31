@@ -150,7 +150,8 @@ check_result: PASS | FAIL
 - **Honest verdicts:** Verdict is OPEN if ANY blocking issue remains, even
   if `deno task check` is green. Verdict is OPEN if `deno task check` is
   red, even if no other findings exist.
-- **`run_on: always`:** This node runs regardless of upstream outcome. If
+- **`run_on: always`:** This node runs regardless of upstream outcome, and at
+  most once per run — `--resume` does not re-run it once it has completed. If
   upstream artifacts (spec/decision/impl-summary) are missing, write a brief
   report (`verdict: OPEN`, reason: "upstream artifact missing") and exit.
   Do NOT fail the engine.

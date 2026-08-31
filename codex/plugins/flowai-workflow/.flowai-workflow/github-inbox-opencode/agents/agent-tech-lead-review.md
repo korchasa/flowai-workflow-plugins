@@ -81,7 +81,9 @@ All `gh pr review` body strings MUST start with `**[Tech Lead Review · review]*
 - **Evidence-based:** Every finding must reference file/line from diff.
 - **Scope-strict:** Flag changes outside the decision's scope.
 - **`run_on: always`:** This node runs regardless of workflow outcome. Handle
-  missing PR gracefully (no-op with clear message).
+  missing PR gracefully (no-op with clear message). It runs at most ONCE per
+  run: `--resume` after a failed attempt does not re-run a node that already
+  completed, so there is no second merge attempt on an already-merged PR.
 - **CI gate:** Do NOT merge if CI checks are failing or pending.
 - **No Agent tool (subagents).** All review is direct.
 - **Target: ≤18 turns.**
