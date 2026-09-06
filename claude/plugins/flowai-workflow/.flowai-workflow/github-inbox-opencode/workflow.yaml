@@ -114,6 +114,10 @@ nodes:
         type: agent
         label: "Developer — Implementation"
         inputs: [decision]
+        # FR-E100: a fix iteration re-enters the session that wrote the code,
+        # so the developer keeps the decision, the docs and its own changes
+        # in context instead of re-reading them.
+        session: continue
         system_prompt: |
           {{file(".flowai-workflow/github-inbox-opencode/agents/agent-developer.md")}}
         prompt: |

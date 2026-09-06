@@ -64,7 +64,9 @@ All `gh issue comment` body strings MUST start with `**[Developer · implement]*
    - Check: PASS
    ```
    Then push: `git push origin HEAD`. ONE push attempt only.
-6. **Fix QA issues (iteration > 1):** Read QA report at
+6. **Fix QA issues (iteration > 1):** You are in the SAME session as your
+   previous attempt (FR-E100) — the decision, the docs and your own changes
+   are already in context; do not re-read them. Read the QA report at
    `<run-dir>/verify/05-qa-report.md` FIRST (derive `<run-dir>` from the
    decision path in the task message). Trust the diagnosis — apply fix
    directly. Target: ≤10 turns for fix iterations.

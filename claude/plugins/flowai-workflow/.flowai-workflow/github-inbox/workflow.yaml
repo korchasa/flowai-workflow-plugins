@@ -124,6 +124,10 @@ nodes:
         type: agent
         label: "Developer — Implementation"
         inputs: [decision]
+        # FR-E100: a fix iteration re-enters the session that wrote the code,
+        # so the developer keeps the decision, the docs and its own changes
+        # in context instead of re-reading them.
+        session: continue
         # FR-S28: developer iterates within the loop and may legitimately
         # leave its memory dirty between iterations; commits land later.
         memory_commit_deferred: true
