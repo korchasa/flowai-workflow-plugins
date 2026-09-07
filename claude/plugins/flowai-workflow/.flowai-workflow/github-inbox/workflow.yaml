@@ -12,7 +12,10 @@ defaults:
   timeout_seconds: 1800
   max_retries: 3
   retry_delay_seconds: 5
-  model: claude-sonnet-4-6
+  # Model ids are the ones the ACP front declares on `session/new`
+  # (`sonnet`, `opus`, `haiku`, …); a full id such as `claude-sonnet-4-6`
+  # is rejected with "Invalid value for config option model".
+  model: sonnet
   # FR-E42: workflow-wide reasoning-effort default; node-level overrides
   # below dial complex stages up and trivial ones down.
   effort: high
@@ -67,7 +70,7 @@ nodes:
   design:
     type: agent
     label: "Architect — Design-Solution Plan"
-    model: claude-opus-4-6
+    model: opus
     inputs: [specification]
     system_prompt: |
       {{file(".flowai-workflow/github-inbox/agents/agent-architect.md")}}
@@ -89,7 +92,7 @@ nodes:
   decision:
     type: agent
     label: "Tech Lead — Decision + Branch + PR"
-    model: claude-opus-4-6
+    model: opus
     inputs: [specification, design]
     system_prompt: |
       {{file(".flowai-workflow/github-inbox/agents/agent-tech-lead.md")}}
